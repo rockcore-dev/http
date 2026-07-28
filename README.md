@@ -234,5 +234,7 @@ yarn check:pkg
 ## Публикация
 
 - После мержа PR в `master` запускается release workflow.
+- Workflow автоматически поднимает patch-версию в `package.json` и пушит коммит в `master`.
 - Workflow публикует пакет в npm только если версия из `package.json` еще не существует.
-- Для публикации нужен секрет `NPM_TOKEN` в GitHub repository secrets.
+- Публикация настроена через npm Trusted Publishing (GitHub OIDC), `NPM_TOKEN` не нужен.
+- В npm нужно один раз связать пакет `@rockcoredev/http` с этим GitHub-репозиторием как trusted publisher.
