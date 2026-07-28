@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-  workflow_dispatch:
 
 jobs:
   bump_version:
@@ -15,6 +14,7 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: write
+      actions: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,58 +44,13 @@ jobs:
           git commit -m "chore(release): bump version to v${{ steps.bump_version.outputs.next_version }}"
           git push
 
-  publish:
-    runs-on: ubuntu-latest
-    if: >-
-      ${{
-        github.event_name == 'workflow_dispatch' ||
-        (github.event_name == 'push' &&
-         github.actor == 'github-actions[bot]' &&
-         startsWith(github.event.head_commit.message, 'chore(release): bump version to v'))
-      }}
-    concurrency:
-      group: npm-release-master
-      cancel-in-progress: false
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          registry-url: https://registry.npmjs.org
-          cache: yarn
-
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile
-
-      - name: Build
-        run: yarn build
-
-      - name: Verify package
-        run: yarn check:pkg
-
-      - name: Check if version already published
-        id: version_check
-        shell: bash
-        run: |
-          PACKAGE_NAME="$(node -p "require('./package.json').name")"
-          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
-          echo "package_name=${PACKAGE_NAME}" >> "${GITHUB_OUTPUT}"
-          echo "package_version=${PACKAGE_VERSION}" >> "${GITHUB_OUTPUT}"
-
-          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version > /dev/null 2>&1; then
-            echo "publish_needed=false" >> "${GITHUB_OUTPUT}"
-            echo "Version ${PACKAGE_NAME}@${PACKAGE_VERSION} already exists in npm. Skipping publish."
-          else
-            echo "publish_needed=true" >> "${GITHUB_OUTPUT}"
-            echo "Version ${PACKAGE_NAME}@${PACKAGE_VERSION} is new. Publishing."
-          fi
-
-      - name: Publish to npm
-        if: steps.version_check.outputs.publish_needed == 'true'
-        run: npm publish --registry https://registry.npmjs.org --provenance --access public
+      - name: Trigger publish workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api
+          --method POST
+          -H "Accept: application/vnd.github+json"
+          /repos/${{ github.repository }}/actions/workflows/publish.yml/dispatches
+          -f ref=master
+          -f inputs[version]=${{ steps.bump_version.outputs.next_version }}

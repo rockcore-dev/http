@@ -1,0 +1,69 @@
+name: Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Package version to publish
+        required: true
+        type: string
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: npm-release-master
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: master
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+          cache: yarn
+
+      - name: Validate bumped version in repository
+        shell: bash
+        run: |
+          CURRENT_VERSION="$(node -p "require('./package.json').version")"
+          EXPECTED_VERSION="${{ inputs.version }}"
+          if [ "${CURRENT_VERSION}" != "${EXPECTED_VERSION}" ]; then
+            echo "Version mismatch: expected ${EXPECTED_VERSION}, got ${CURRENT_VERSION}"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build
+        run: yarn build
+
+      - name: Verify package
+        run: yarn check:pkg
+
+      - name: Check if version already published
+        id: version_check
+        shell: bash
+        run: |
+          PACKAGE_NAME="$(node -p "require('./package.json').name")"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version > /dev/null 2>&1; then
+            echo "publish_needed=false" >> "${GITHUB_OUTPUT}"
+            echo "Version ${PACKAGE_NAME}@${PACKAGE_VERSION} already exists in npm. Skipping publish."
+          else
+            echo "publish_needed=true" >> "${GITHUB_OUTPUT}"
+            echo "Version ${PACKAGE_NAME}@${PACKAGE_VERSION} is new. Publishing."
+          fi
+
+      - name: Publish to npm
+        if: steps.version_check.outputs.publish_needed == 'true'
+        run: npm publish --registry https://registry.npmjs.org --provenance --access public
+
