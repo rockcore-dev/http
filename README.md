@@ -238,4 +238,5 @@ yarn check:pkg
 - `Publish` отдельно собирает и публикует пакет в npm.
 - Публикация выполняется только если версия из `package.json` еще не существует в npm.
 - Публикация настроена через npm Trusted Publishing (GitHub OIDC), `NPM_TOKEN` не нужен.
+- Если OIDC-публикация в `Publish` не проходит, workflow умеет fallback на `NPM_TOKEN` (automation token), если он задан в secrets.
 - В npm нужно один раз связать пакет `@rockcoredev/http` с этим GitHub-репозиторием как trusted publisher.
