@@ -234,7 +234,8 @@ yarn check:pkg
 ## Публикация
 
 - После мержа PR в `master` запускается release workflow.
-- Внутри одного run workflow поднимает patch-версию в `package.json`, пушит коммит `chore(release): bump version to vX.Y.Z`, затем собирает и публикует пакет в npm.
+- Фаза 1 (run от автора мержа): workflow поднимает patch-версию в `package.json` и пушит коммит `chore(release): bump version to vX.Y.Z`.
+- Фаза 2 (следующий run от `github-actions[bot]`): workflow собирает и публикует пакет в npm.
 - Публикация выполняется только если версия из `package.json` еще не существует в npm.
 - Публикация настроена через npm Trusted Publishing (GitHub OIDC), `NPM_TOKEN` не нужен.
 - В npm нужно один раз связать пакет `@rockcoredev/http` с этим GitHub-репозиторием как trusted publisher.
