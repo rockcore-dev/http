@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-  workflow_dispatch:
 
 jobs:
   bump_version:
@@ -46,13 +45,8 @@ jobs:
 
   publish:
     runs-on: ubuntu-latest
-    if: >-
-      ${{
-        github.event_name == 'workflow_dispatch' ||
-        (github.event_name == 'push' &&
-         github.actor == 'github-actions[bot]' &&
-         startsWith(github.event.head_commit.message, 'chore(release): bump version to v'))
-      }}
+    needs: bump_version
+    if: ${{ needs.bump_version.result == 'success' }}
     concurrency:
       group: npm-release-master
       cancel-in-progress: false
@@ -62,6 +56,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: master
 
       - name: Setup Node
         uses: actions/setup-node@v4
