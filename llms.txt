@@ -1,0 +1,115 @@
+# @rockcoredev/http - LLM Integration Notes
+
+Purpose
+- Isomorphic TypeScript HTTP client built on top of global fetch.
+- Works in Node.js 18+, browsers, and edge runtimes.
+- Package name: @rockcoredev/http
+
+Install
+- yarn add @rockcoredev/http
+
+Primary API
+- createHttpClient(config?)
+- client methods:
+  - request<T>(path, options?)
+  - get<T>(path, options?)
+  - post<T>(path, options?)
+  - put<T>(path, options?)
+  - patch<T>(path, options?)
+  - delete<T>(path, options?)
+
+Basic Example
+```ts
+import { createHttpClient } from '@rockcoredev/http';
+
+type User = { id: string; name: string };
+
+const http = createHttpClient({
+  baseUrl: 'https://api.example.com',
+  timeoutMs: 5000,
+  headers: { authorization: 'Bearer <token>' }
+});
+
+const user = await http.get<User>('/users/1');
+await http.post('/users', { json: { name: 'Alice' } });
+```
+
+Config: createHttpClient
+- baseUrl?: string
+- headers?: HeadersInit
+- timeoutMs?: number
+- fetchFn?: typeof fetch
+- requestsPerSecond?: number
+- retry?: RetryConfig
+- proxy?: ProxyConfig
+
+Request Options (extends RequestInit)
+- query?: Record<string, QueryValue>
+- json?: unknown
+- body?: BodyInit | null
+- timeoutMs?: number
+- retry?: RetryConfig | false
+- proxy?: ProxyConfig | false
+- plus standard RequestInit fields (method, signal, credentials, etc.)
+
+Retry Behavior
+- Default retry methods: GET, HEAD, OPTIONS, PUT, DELETE
+- Default retry statuses: 408, 425, 429, 500, 502, 503, 504
+- Exponential backoff fields:
+  - attempts?: number
+  - delayMs?: number
+  - maxDelayMs?: number
+  - backoffFactor?: number
+  - retryOnStatuses?: number[]
+  - retryOnMethods?: string[]
+- AbortError is not retried.
+- HttpError is not retried.
+
+Rate Limiting
+- requestsPerSecond limits total throughput per client instance.
+- Applies across concurrent calls made through the same client.
+
+Proxy Support
+- proxy.headers: injected request headers.
+- proxy.dispatcher: passed through as non-standard fetch init field
+  (useful for Node/undici proxy dispatchers).
+
+Error Model
+- Non-2xx responses throw HttpError.
+- HttpError fields:
+  - status: number
+  - statusText: string
+  - url: string
+  - response: Response
+  - body?: unknown (parsed from response when possible)
+- statusText fallback:
+  - response.statusText
+  - or known text from HTTP status reference
+  - or "Unknown Status"
+
+HTTP Status Reference Exports
+- HTTP_STATUS_TEXTS
+- getHttpStatusText(code)
+- RETRYABLE_HTTP_STATUS_CODES
+- isRetryableHttpStatusCode(code)
+
+Response Parsing
+- content-type includes "application/json" => response.json()
+- content-type starts with "text/" => response.text()
+- empty content-type => response.text() (undefined if empty string)
+- otherwise => response.arrayBuffer()
+- status 204/205 => undefined
+
+Runtime Requirements
+- Global fetch, Headers, AbortController, AbortSignal are required.
+- For relative paths outside browser-like runtime, set baseUrl.
+
+Guidance for LLM Code Generation
+- Prefer createHttpClient once per API domain.
+- Use generics on get/post/request for typed responses.
+- Use json option for JSON body instead of manual stringify.
+- Catch HttpError for API-level failures.
+- Avoid retries for non-idempotent writes unless explicitly requested.
+- Keep imports exactly:
+  import { createHttpClient, HttpError } from '@rockcoredev/http';
+
