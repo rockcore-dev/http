@@ -63,7 +63,43 @@ jobs:
             echo "Version ${PACKAGE_NAME}@${PACKAGE_VERSION} is new. Publishing."
           fi
 
-      - name: Publish to npm
+      - name: Publish to npm via Trusted Publishing (OIDC)
+        id: publish_oidc
         if: steps.version_check.outputs.publish_needed == 'true'
+        continue-on-error: true
         run: npm publish --registry https://registry.npmjs.org --provenance --access public
+
+      - name: Check fallback token availability
+        id: token_check
+        if: >-
+          steps.version_check.outputs.publish_needed == 'true' &&
+          steps.publish_oidc.outcome == 'failure'
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        shell: bash
+        run: |
+          if [ -n "${NPM_TOKEN}" ]; then
+            echo "has_npm_token=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "has_npm_token=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Fallback publish via NPM token
+        if: >-
+          steps.version_check.outputs.publish_needed == 'true' &&
+          steps.publish_oidc.outcome == 'failure' &&
+          steps.token_check.outputs.has_npm_token == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --registry https://registry.npmjs.org --provenance --access public
+
+      - name: Fail when all publish methods failed
+        if: >-
+          steps.version_check.outputs.publish_needed == 'true' &&
+          steps.publish_oidc.outcome == 'failure' &&
+          steps.token_check.outputs.has_npm_token == 'false'
+        run: |
+          echo "OIDC publish failed and NPM_TOKEN is not configured."
+          echo "Either fix npm Trusted Publisher mapping or add an automation token as NPM_TOKEN."
+          exit 1
 
