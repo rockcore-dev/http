@@ -230,3 +230,9 @@ yarn test:run
 yarn build
 yarn check:pkg
 ```
+
+## Публикация
+
+- После мержа PR в `master` запускается release workflow.
+- Workflow публикует пакет в npm только если версия из `package.json` еще не существует.
+- Для публикации нужен секрет `NPM_TOKEN` в GitHub repository secrets.

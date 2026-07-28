@@ -2,12 +2,16 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - master
+  workflow_dispatch:
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    concurrency:
+      group: npm-release-master
+      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write
@@ -31,7 +35,25 @@ jobs:
       - name: Verify package
         run: yarn check:pkg
 
+      - name: Check if version already published
+        id: version_check
+        shell: bash
+        run: |
+          PACKAGE_NAME="$(node -p "require('./package.json').name")"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          echo "package_name=${PACKAGE_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "package_version=${PACKAGE_VERSION}" >> "${GITHUB_OUTPUT}"
+
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version > /dev/null 2>&1; then
+            echo "publish_needed=false" >> "${GITHUB_OUTPUT}"
+            echo "Version ${PACKAGE_NAME}@${PACKAGE_VERSION} already exists in npm. Skipping publish."
+          else
+            echo "publish_needed=true" >> "${GITHUB_OUTPUT}"
+            echo "Version ${PACKAGE_NAME}@${PACKAGE_VERSION} is new. Publishing."
+          fi
+
       - name: Publish to npm
+        if: steps.version_check.outputs.publish_needed == 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --provenance --access public
